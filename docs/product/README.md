@@ -6,7 +6,7 @@
 2. [可行性分析](可行性分析.md) — 八类风险、关键假设、R0 实验与 Go/Hold/Stop；
 3. [一期 PRD](PRD-FlyWiki-一期.md) — 用户、目标、范围、指标、Release 与验收；
 4. [一期产品设计](产品设计-FlyWiki-一期.md) — 信息架构、核心流程、状态、权限与异常体验；
-5. [一期产品与技术方案](../一期产品与技术方案.md) — Module、OpenKB 边界、技术栈、部署和 Definition of Done。
+5. [一期产品与技术方案](一期产品与技术方案.md) — Module、OpenKB 边界、技术栈、部署和 Definition of Done。
 
 研究依据：[研发前需求与商业验证问卷](../product-research/研发前需求与商业验证问卷.md) · [竞品事实底稿](../product-research/竞品事实底稿.md) · [知识健康能力调研](../开源知识库健康能力调研.md)
 
