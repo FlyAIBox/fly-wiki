@@ -4,7 +4,7 @@ status: accepted
 
 # 以 Workspace 作为唯一租户与安全边界
 
-FlyWiki 从第一天以 Workspace 隔离数据、权限、配额、密钥和审计，暂时提供单用户体验但不另设重复的 Tenant 概念。平台账号是根身份；个人微信、飞书和 Edge Device 只形成可撤销 Channel Binding。匿名 Share Link 只授予特定 Knowledge Release 的读取、查询和 Visitor Session 写作能力，访客不能修改所有者 Knowledge Base。
+FlyWiki 从第一天以 Workspace 隔离数据、权限、配额、密钥和审计，首发提供单用户自托管体验但不另设重复的 Tenant 概念。Workspace Owner 是根身份；微信和后续其他 Channel 只形成可撤销 Channel Binding。分享与 Visitor Session 属于后续范围，不能反向削弱首发的 Workspace 边界。
 
 ## Considered Options
 
@@ -14,7 +14,7 @@ FlyWiki 从第一天以 Workspace 隔离数据、权限、配额、密钥和审�
 
 ## Consequences
 
-- 所有 Workspace 资源使用包含 `workspace_id` 的组合外键，并由 PostgreSQL RLS 与应用层共同约束。
+- 所有 Workspace 资源使用包含 `workspace_id` 的组合外键；首发由应用层强制约束，PostgreSQL RLS 作为多用户化前的防御纵深门禁。
 - Celery 任务携带签名执行上下文，Capability Gateway 在每次调用时重新授权。
-- 个人微信凭证只保存在 Edge Device 的系统密钥库，云端不集中保存。
+- 个人微信凭证只保存在自托管实例的加密 Secret Store，不进入领域表、普通日志、导出包或模型上下文。
 - 分享默认不展示或下载原始资料；访客附件属于 Visitor Session，只有提交并获接受后才能进入所有者知识库。
