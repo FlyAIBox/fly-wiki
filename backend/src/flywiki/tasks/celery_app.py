@@ -23,3 +23,6 @@ celery_app.conf.update(
 def ping() -> str:
     return "pong"
 
+
+# Import task modules after celery_app is constructed to avoid circular imports.
+from flywiki.sources import tasks as source_tasks  # noqa: E402, F401

@@ -18,6 +18,7 @@
 ## 运行与验收（runbooks/）
 
 - [本地 Compose 骨架验收](runbooks/本地Compose验收.md) — 单命令启动后的手动检查项与期望输出
+- [网页采集与 Editable Note 验收](runbooks/网页采集验收.md) — 异步采集、Source Version 与 Note 版本化
 
 ## 研究依据与支撑材料
 

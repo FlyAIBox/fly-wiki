@@ -1,3 +1,5 @@
+import uuid
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,6 +9,8 @@ from flywiki.db.database import Database
 from flywiki.health.routes import router as health_router
 from flywiki.health.service import CeleryProbe, DatabaseProbe, HealthService, HttpProbe, RedisProbe
 from flywiki.observability.factory import create_observability
+from flywiki.sources.routes import router as source_router
+from flywiki.sources.storage import ObjectStore, create_minio_object_store
 from flywiki.tasks.celery_app import celery_app
 from flywiki.workspaces.bootstrap import bootstrap_default_context
 from flywiki.workspaces.routes import router as workspace_router
@@ -17,6 +21,8 @@ def create_app(
     *,
     database: Database | None = None,
     health_service: HealthService | None = None,
+    object_store: ObjectStore | None = None,
+    capture_dispatcher: Callable[[uuid.UUID, uuid.UUID], object] | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     app_database = database or Database(app_settings.database_url)
@@ -46,7 +52,17 @@ def create_app(
     app.state.database = app_database
     app.state.health_service = health_service or HealthService(probes)
     app.state.observability = create_observability(app_settings)
+    app.state.object_store = object_store or create_minio_object_store(app_settings)
+    app.state.capture_dispatcher = capture_dispatcher or dispatch_capture_job
     app.include_router(health_router)
     app.include_router(workspace_router)
+    app.include_router(source_router)
     return app
 
+
+def dispatch_capture_job(workspace_id: uuid.UUID, job_id: uuid.UUID) -> object:
+    return celery_app.send_task(
+        "flywiki.sources.capture",
+        args=[str(workspace_id), str(job_id)],
+        task_id=str(job_id),
+    )

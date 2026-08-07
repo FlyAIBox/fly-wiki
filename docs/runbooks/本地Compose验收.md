@@ -165,4 +165,6 @@ docker compose down -v       # 连同 Postgres/Redis/MinIO 数据一并删除（
 
 - `docker compose --profile observability`（Langfuse / ClickHouse）
 - `docker compose --profile openkb`（OpenKB Worker 镜像尚未就绪）
-- 微信绑定、Capture、Source Version 等领域能力（后续票）
+- 微信绑定等后续领域能力
+
+Capture 与 Source Version 请按[网页采集与 Editable Note 验收](网页采集验收.md)单独验证。
