@@ -1,0 +1,2 @@
+"""FlyWiki application package."""
+

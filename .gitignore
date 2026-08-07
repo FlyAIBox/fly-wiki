@@ -1,1 +1,22 @@
 docs/.DS_Store
+.DS_Store
+
+# Secrets — never commit; copy .env.example to .env locally.
+.env
+.env.*
+!.env.example
+
+# Python / backend
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+backend/.venv/
+backend/.uvcache/
+backend/flywiki.db
+backend/*.db
+
+# Web / Node
+node_modules/
+web/dist/

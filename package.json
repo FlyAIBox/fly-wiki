@@ -1,0 +1,11 @@
+{
+  "name": "flywiki",
+  "private": true,
+  "packageManager": "pnpm@11.13.1",
+  "scripts": {
+    "web:dev": "pnpm --dir web dev",
+    "web:build": "pnpm --dir web build",
+    "web:test": "pnpm --dir web test",
+    "web:typecheck": "pnpm --dir web typecheck"
+  }
+}

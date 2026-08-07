@@ -1,0 +1,20 @@
+# Root build context (.) — keep image builds lean and secret-free.
+.git
+.env
+.env.*
+!.env.example
+node_modules
+**/node_modules
+web/dist
+docs
+evals
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+backend/.venv
+backend/.uvcache
+backend/flywiki.db
+**/.mypy_cache
+.DS_Store

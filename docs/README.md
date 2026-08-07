@@ -15,6 +15,10 @@
 - [领域词汇表](../CONTEXT.md) — Source、Evidence Span、Claim、Belief 等统一语言（含一期/二期范围标注）
 - [架构决策记录](adr/) — OpenKB、证据真相源、工作流运行时和 Workspace 安全边界
 
+## 运行与验收（runbooks/）
+
+- [本地 Compose 骨架验收](runbooks/本地Compose验收.md) — 单命令启动后的手动检查项与期望输出
+
 ## 研究依据与支撑材料
 
 以下文档是一期基线的一手依据，仍然有效：
