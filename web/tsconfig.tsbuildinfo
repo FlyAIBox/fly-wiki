@@ -1,0 +1,1 @@
+{"root":["./src/env.d.ts","./src/main.ts","./src/router.ts","./src/api/sources.ts","./src/stores/capture.spec.ts","./src/stores/capture.ts","./src/stores/platform.spec.ts","./src/stores/platform.ts","./src/app.vue","./src/views/editablenoteeditor.vue","./src/views/platformhome.vue","./vite.config.ts"],"version":"5.8.3"}

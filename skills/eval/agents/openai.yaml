@@ -1,0 +1,7 @@
+interface:
+  display_name: "外部使用与设计评审（eval）"
+  short_description: "用真实使用与独立设计评审校正目标，并按授权持续改进"
+  default_prompt: "使用 $eval，让隔离的真实用户和独立专业评审验证这个目标，并按我的授权反馈或持续改进。"
+
+policy:
+  allow_implicit_invocation: false

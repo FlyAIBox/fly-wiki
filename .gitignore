@@ -20,3 +20,4 @@ backend/*.db
 # Web / Node
 node_modules/
 web/dist/
+.pnpm-store/*
