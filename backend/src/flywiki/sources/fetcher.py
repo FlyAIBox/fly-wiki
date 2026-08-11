@@ -1,6 +1,7 @@
 import asyncio
 import ipaddress
 import posixpath
+import re
 import socket
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -12,6 +13,15 @@ import httpx
 from flywiki.sources.service import normalize_web_url
 
 Resolver = Callable[[str, int], Awaitable[list[str]]]
+
+_READER_UPSTREAM_ERROR = re.compile(
+    rb"(?im)^Warning:\s*Target URL returned error\s+([45]\d\d)\b"
+)
+_CHALLENGE_MARKER_GROUPS = (
+    (b"warning: this page maybe requiring captcha",),
+    ("环境异常".encode(), "完成验证后即可继续访问".encode()),
+    (b"you've been blocked by network security", b"log in to your reddit account"),
+)
 
 
 class CaptureFetchError(RuntimeError):
@@ -36,12 +46,19 @@ class ProviderUnavailableError(CaptureFetchError):
     code = "provider_unavailable"
 
 
+class BlockedContentError(ProviderUnavailableError):
+    """The provider returned a login wall, CAPTCHA, or network challenge."""
+
+    code = "blocked_content"
+
+
 @dataclass(frozen=True)
 class FetchedWebPage:
     final_url: str
     content: bytes
     content_type: str
     backend: str = "unknown"
+    metadata: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +195,12 @@ class AgentReachWebFetcher:
         content = b"".join(chunks)
         if not content.strip():
             raise ProviderUnavailableError("Agent Reach returned an empty page")
+        upstream_error = _READER_UPSTREAM_ERROR.search(content)
+        if upstream_error is not None:
+            status_code = upstream_error.group(1).decode()
+            raise BlockedContentError(f"Agent Reach upstream returned {status_code}")
+        if _is_challenge_page(content):
+            raise BlockedContentError("Agent Reach returned a challenge page")
         return FetchedWebPage(target_url, content, "text/markdown", backend="agent-reach")
 
     async def fetch_attachment(self, _url: str) -> FetchedAttachment:
@@ -230,6 +253,8 @@ class SafeWebFetcher:
             )
         except httpx.HTTPError as exc:
             raise CaptureFetchError(type(exc).__name__) from exc
+        if _is_challenge_page(content):
+            raise BlockedContentError("web origin returned a challenge page")
         return FetchedWebPage(final_url, content, content_type, backend="safe-web")
 
     async def fetch_attachment(self, url: str) -> FetchedAttachment:
@@ -320,3 +345,11 @@ class SafeWebFetcher:
                 raise UnsafeUrlError("DNS returned an invalid address") from exc
             if not ip.is_global:
                 raise UnsafeUrlError("URL resolves to a non-public address")
+
+
+def _is_challenge_page(content: bytes) -> bool:
+    normalized = content.lower()
+    return any(
+        all(marker in normalized for marker in marker_group)
+        for marker_group in _CHALLENGE_MARKER_GROUPS
+    )

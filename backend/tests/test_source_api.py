@@ -8,6 +8,7 @@ from flywiki.db.database import Database
 from flywiki.sources.extractor import WebPageExtractor
 from flywiki.sources.fetcher import FetchedWebPage
 from flywiki.sources.pipeline import CapturePipeline
+from flywiki.sources.repository import SourceRepository
 from flywiki.sources.storage import InMemoryObjectStore
 from flywiki.workspaces.bootstrap import bootstrap_default_context
 
@@ -154,3 +155,54 @@ async def test_submit_records_queue_failure(database: Database) -> None:
         )
 
     assert response.status_code == 503
+
+
+async def test_retry_returns_the_refreshed_capture_after_dispatch(database: Database) -> None:
+    settings = Settings(bootstrap_on_start=False)
+    async with database.sessions() as session:
+        context = await bootstrap_default_context(session, settings)
+
+    def fail_dispatch(_workspace_id: uuid.UUID, _job_id: uuid.UUID) -> None:
+        raise ConnectionError("broker unavailable")
+
+    dispatched: list[tuple[uuid.UUID, uuid.UUID]] = []
+    app = create_app(
+        settings,
+        database=database,
+        object_store=InMemoryObjectStore(),
+        capture_dispatcher=fail_dispatch,
+    )
+    base = f"/api/workspaces/{context.workspace.id}"
+    headers = {"X-Workspace-ID": str(context.workspace.id)}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        failed = await client.post(
+            f"{base}/knowledge-bases/{context.knowledge_base.id}/captures",
+            headers=headers,
+            json={
+                "url": "https://example.com/retry-after-queue-failure",
+                "idempotency_key": "api:retry-after-queue-failure:1",
+            },
+        )
+        assert failed.status_code == 503
+
+        async with database.sessions() as session:
+            job = await SourceRepository(session).find_capture_job(
+                context.workspace.id,
+                "api:retry-after-queue-failure:1",
+            )
+            assert job is not None
+            job_id = job.id
+
+        app.state.capture_dispatcher = (
+            lambda workspace_id, capture_job_id: dispatched.append(
+                (workspace_id, capture_job_id)
+            )
+        )
+        retried = await client.post(
+            f"{base}/captures/{job_id}/retry",
+            headers=headers,
+        )
+
+    assert retried.status_code == 202
+    assert retried.json()["status"] == "accepted"
+    assert dispatched == [(context.workspace.id, job_id)]

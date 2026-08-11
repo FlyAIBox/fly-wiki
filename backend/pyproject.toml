@@ -2,7 +2,7 @@
 name = "flywiki"
 version = "0.1.0"
 description = "Evidence-first, self-hosted LLM Wiki"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "alembic>=1.16,<2",
@@ -12,12 +12,14 @@ dependencies = [
   "deepagents>=0.7,<0.8",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
+  "html2text>=2025.4,<2026",
   "langchain-openai>=1.4,<2",
   "langfuse>=3,<4",
   "markdownify>=1.2,<2",
   "minio>=7.2,<8",
   "pydantic-settings>=2.10,<3",
   "redis>=6,<7",
+  "scrapling[fetchers]>=0.4.14,<0.5",
   "sqlalchemy[asyncio]>=2.0.41,<3",
   "uvicorn[standard]>=0.35,<1",
 ]
@@ -48,4 +50,3 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
-

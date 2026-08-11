@@ -10,6 +10,7 @@ from flywiki.config import Settings
 from flywiki.sources.extractor import WebPageExtractor
 from flywiki.sources.fetcher import (
     AgentReachWebFetcher,
+    CaptureFetchError,
     FetchedAttachment,
     FetchedWebPage,
     ProviderUnavailableError,
@@ -129,6 +130,62 @@ async def test_agent_reach_web_reader_returns_normalized_markdown() -> None:
     assert extracted.markdown == b"# Agent Reach\n\nReader output.\n"
     assert extracted.metadata["capture_content_type"] == "text/markdown"
     assert extracted.locator_map["blocks"][0]["text"] == "Agent Reach"
+
+
+async def test_agent_reach_web_reader_rejects_upstream_block_pages() -> None:
+    async def public_resolver(_host: str, _port: int) -> list[str]:
+        return ["151.101.1.140"]
+
+    reader = AgentReachWebFetcher(
+        timeout_seconds=1,
+        max_bytes=1_000,
+        max_redirects=1,
+        resolver=public_resolver,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                headers={"content-type": "text/plain; charset=utf-8"},
+                content=(
+                    b"Warning: Target URL returned error 403: Forbidden\n\n"
+                    b"You've been blocked by network security.\n\n"
+                    b"To continue, log in to your Reddit account or use your developer token."
+                ),
+                request=request,
+            )
+        ),
+    )
+
+    with pytest.raises(ProviderUnavailableError, match="upstream returned 403"):
+        await reader.fetch(
+            "https://www.reddit.com/r/ObsidianMD/comments/1g9ir90/example/"
+        )
+
+
+async def test_agent_reach_web_reader_rejects_captcha_challenge_pages() -> None:
+    async def public_resolver(_host: str, _port: int) -> list[str]:
+        return ["101.91.22.57"]
+
+    reader = AgentReachWebFetcher(
+        timeout_seconds=1,
+        max_bytes=1_000,
+        max_redirects=1,
+        resolver=public_resolver,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                headers={"content-type": "text/plain; charset=utf-8"},
+                content=(
+                    b"Warning: This page maybe requiring CAPTCHA, please make sure "
+                    b"you are authorized to access this page.\n\n" +
+                    "## 环境异常\n\n当前环境异常，完成验证后即可继续访问。\n".encode()
+                ),
+                request=request,
+            )
+        ),
+    )
+
+    with pytest.raises(ProviderUnavailableError, match="challenge page"):
+        await reader.fetch("https://mp.weixin.qq.com/s/example")
 
 
 async def test_capture_pipeline_is_idempotent_and_creates_editable_note(
@@ -332,6 +389,35 @@ async def test_safe_fetcher_blocks_private_addresses_and_large_responses() -> No
     )
     with pytest.raises(ResponseTooLargeError):
         await large_fetcher.fetch("https://example.com/")
+
+
+async def test_safe_fetcher_rejects_http_200_challenge_pages() -> None:
+    async def public_resolver(_host: str, _port: int) -> list[str]:
+        return ["101.91.22.57"]
+
+    fetcher = SafeWebFetcher(
+        timeout_seconds=1,
+        max_bytes=1_000,
+        max_redirects=1,
+        resolver=public_resolver,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                headers={"content-type": "text/html; charset=utf-8"},
+                content=(
+                    "<html><head><title>环境异常</title></head>"
+                    "<body><h2>环境异常</h2>"
+                    "<p>当前环境异常，完成验证后即可继续访问。</p></body></html>"
+                ).encode(),
+                request=request,
+            )
+        ),
+    )
+
+    with pytest.raises(CaptureFetchError) as caught:
+        await fetcher.fetch("https://mp.weixin.qq.com/s/example")
+
+    assert caught.value.code == "blocked_content"
 
 
 async def test_repository_hides_capture_job_and_note_across_workspaces(

@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     agent_reach_skill_path: Path = (
         Path(__file__).resolve().parents[3] / "skills" / "agent-reach"
     )
+    web_content_fetcher_skill_path: Path = Path("skills/web-content-fetcher")
     langfuse_health_url: str = "http://localhost:3000/api/public/health"
     bootstrap_on_start: bool = True
     default_owner_email: str = "owner@flywiki.local"
@@ -57,6 +58,13 @@ class Settings(BaseSettings):
     def resolved_agent_model(self) -> str:
         project_override = (self.agent_model or "").strip()
         return project_override or self.model_name.strip()
+
+    @property
+    def resolved_web_content_fetcher_skill_path(self) -> Path:
+        if self.web_content_fetcher_skill_path.is_absolute():
+            return self.web_content_fetcher_skill_path
+        project_root = Path(__file__).resolve().parents[3]
+        return project_root / self.web_content_fetcher_skill_path
 
 
 @lru_cache

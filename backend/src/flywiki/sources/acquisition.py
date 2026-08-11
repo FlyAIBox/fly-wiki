@@ -16,6 +16,7 @@ from flywiki.sources.notes import EditableNoteService
 from flywiki.sources.service import AttachmentInput, CaptureWebSnapshot, SourceRegistry
 from flywiki.sources.social import AgentReachSocialFetcher
 from flywiki.sources.storage import ObjectStore
+from flywiki.sources.wechat import WeChatPublicAccountFetcher
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,8 @@ class SourceAcquisitionService:
             )
 
         metadata = dict(extracted.metadata)
+        if page.metadata is not None:
+            metadata.update(page.metadata)
         metadata["capture_backend"] = page.backend
         metadata["attachment_count"] = len(attachments)
         metadata["attachment_failures"] = attachment_failures
@@ -127,10 +130,18 @@ def create_capture_fetcher(settings: Settings) -> WebFetcher:
         timeout_seconds=settings.capture_timeout_seconds,
         max_bytes=settings.capture_max_bytes,
     )
+    wechat_public_account = WeChatPublicAccountFetcher(
+        skill_root=settings.resolved_web_content_fetcher_skill_path,
+        timeout_seconds=max(settings.capture_timeout_seconds, 60.0),
+        max_bytes=settings.capture_max_bytes,
+    )
 
     # Each adapter owns one capability family. The capture pipeline only sees
     # this chain and can therefore survive a skill/runtime replacement.
     return RoutedWebFetcher(
         agent_reach_social,
-        RoutedWebFetcher(agent_reach_web, safe_web),
+        RoutedWebFetcher(
+            wechat_public_account,
+            RoutedWebFetcher(agent_reach_web, safe_web),
+        ),
     )

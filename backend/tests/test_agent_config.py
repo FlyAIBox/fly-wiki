@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from langchain_openai import ChatOpenAI
 
 from flywiki.agents.factory import create_agent_model
@@ -29,3 +31,15 @@ def test_flywiki_agent_model_remains_a_compatible_override(monkeypatch) -> None:
     settings = Settings(_env_file=None)
 
     assert settings.resolved_agent_model == "openai:legacy-override"
+
+
+def test_web_content_fetcher_uses_a_project_relative_config_path(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.delenv("FLYWIKI_WEB_CONTENT_FETCHER_SKILL_PATH", raising=False)
+    settings = Settings(_env_file=None)
+
+    assert settings.web_content_fetcher_skill_path == Path(
+        "skills/web-content-fetcher"
+    )
+    assert settings.resolved_web_content_fetcher_skill_path == (
+        Path(__file__).resolve().parents[2] / "skills" / "web-content-fetcher"
+    )
