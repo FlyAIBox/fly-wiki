@@ -67,7 +67,7 @@ FlyWiki 不强制传入 `--stealth`。脚本先用 Scrapling `Fetcher` 发起快
 
 如果两个选择器都未命中，才退回通用正文候选选择器。转换前会把图片的 `data-src` 提升为 `src`，以保留微信公众号常见的懒加载图片链接。随后使用 `html2text` 转成 Markdown，保留标题、段落、列表、链接、图片、强调和代码等结构。
 
-注意：Markdown 中保留远程图片链接，不等于 FlyWiki 已下载图片文件。当前微信 Adapter 不返回 `attachment_urls`，因此这条路径不会把公众号图片另存为附件 Artifact。
+Skill 在 Markdown 中保留远程图片链接；FlyWiki 的 Markdown 提取器会继续发现普通图片、引用式图片和内嵌 `<img>`，去重后最多取 20 个 HTTP(S) 地址。图片下载统一交给安全附件下载器执行公网 DNS、重定向、Content-Type 和大小检查，成功结果保存为附件 Artifact，失败数量记录在 `attachment_failures`。
 
 ### 3.3 元数据
 
@@ -152,6 +152,7 @@ curl -fsS -X POST \
 - `metadata.json` 中 `capture_backend` 为 `web-content-fetcher:wechat`；
 - 元数据中存在可提取到的 `title`、`author` 和 `published_at`；
 - `content.md` 第一行是文章标题，后续为 Markdown 正文；
+- `metadata.json` 的 `attachment_count` 和 `attachment_failures` 反映文章图片下载结果；
 - 创建了不可变 Source Version 和对应 Editable Note。
 
 ### 5.2 直接运行 skill（仅开发和排障）
@@ -243,7 +244,7 @@ Task ... succeeded ...: 'failed'
 
 - 仅支持公开的 `mp.weixin.qq.com/s...` 文章 URL；不负责公众号搜索、历史文章列表或私有预览链接。
 - 不绕过登录墙、验证码、访问频率限制或平台风控；持续出现挑战页时应失败，而不是把挑战页保存为证据。
-- Markdown 会保留远程图片地址，但微信 Adapter 当前不下载图片为独立 Artifact。
+- Markdown 会保留远程图片地址，并尝试下载最多 20 张为独立 Artifact；被防盗链、风控、类型或大小限制拒绝的图片只计入 `attachment_failures`，不导致正文采集失败。
 - 浏览器模式可能带入播放器或交互控件文本；因此默认先尝试通常更干净的快速模式。
 - `raw_html` 是 Artifact 的历史角色名；当采集后端直接返回 Markdown 时，该 Artifact 的内容也可能是 Markdown，并非真实原始 HTML。
 - 上游页面结构变化时，优先在 skill 内更新选择器和提取逻辑，保持 Adapter JSON 协议不变。
@@ -261,6 +262,7 @@ uv run pytest tests/test_wechat_fetcher.py tests/test_capture_pipeline.py
 
 1. 正文长度合理且不是验证码/环境异常页；
 2. 标题、作者、发布时间正确；
-3. Markdown 图片仍使用可解析的 URL；
-4. `capture_backend=web-content-fetcher:wechat`；
-5. skill 失败时，通用回退和最终错误码仍符合预期。
+3. Markdown 图片仍使用可解析的 URL，且可下载图片形成附件 Artifact；
+4. `attachment_count + attachment_failures` 与最多 20 个去重候选一致；
+5. `capture_backend=web-content-fetcher:wechat`；
+6. skill 失败时，通用回退和最终错误码仍符合预期。

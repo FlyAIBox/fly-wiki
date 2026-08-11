@@ -45,6 +45,12 @@ class FakeFetcher:
         return FetchedAttachment(url, b"PNG", "image/png", "image.png")
 
 
+class FakeMarkdownFetcher(FakeFetcher):
+    async def fetch(self, url: str) -> FetchedWebPage:
+        self.calls += 1
+        return FetchedWebPage(url, self.content, "text/markdown")
+
+
 class FailingFetcher:
     async def fetch(self, _url: str) -> FetchedWebPage:
         raise UnsafeUrlError("blocked")
@@ -130,6 +136,46 @@ async def test_agent_reach_web_reader_returns_normalized_markdown() -> None:
     assert extracted.markdown == b"# Agent Reach\n\nReader output.\n"
     assert extracted.metadata["capture_content_type"] == "text/markdown"
     assert extracted.locator_map["blocks"][0]["text"] == "Agent Reach"
+
+
+def test_markdown_extractor_discovers_safe_image_syntaxes() -> None:
+    extracted = WebPageExtractor().extract(
+        b"# Article\n\n"
+        b"![first](https://cdn.example.com/one.png \"title\")\n"
+        b"![duplicate](https://cdn.example.com/one.png)\n"
+        b"![relative](../images/two.png)\n"
+        b"![angle](<https://cdn.example.com/image_(3).png>)\n"
+        b"![reference][hero]\n"
+        b'<img src="https://cdn.example.com/four.png" alt="four">\n'
+        b"![ignored](data:image/png;base64,AAAA)\n\n"
+        b"[hero]: https://cdn.example.com/hero.png\n",
+        "https://example.com/articles/current",
+        content_type="text/markdown",
+    )
+
+    assert extracted.attachment_urls == (
+        "https://cdn.example.com/one.png",
+        "https://example.com/images/two.png",
+        "https://cdn.example.com/image_(3).png",
+        "https://cdn.example.com/hero.png",
+        "https://cdn.example.com/four.png",
+    )
+
+
+def test_markdown_extractor_caps_attachment_candidates() -> None:
+    markdown = "\n".join(
+        f"![image {index}](https://cdn.example.com/{index}.png)"
+        for index in range(25)
+    )
+
+    extracted = WebPageExtractor().extract(
+        markdown.encode(),
+        "https://example.com/article",
+        content_type="text/markdown",
+    )
+
+    assert len(extracted.attachment_urls) == 20
+    assert extracted.attachment_urls[-1] == "https://cdn.example.com/19.png"
 
 
 async def test_agent_reach_web_reader_rejects_upstream_block_pages() -> None:
@@ -273,6 +319,42 @@ async def test_capture_pipeline_downloads_page_images_as_immutable_attachments(
     )
     attachment = next(item for item in artifacts if item.role.value == "attachment")
     assert await store.get(attachment.object_key) == b"PNG"
+
+
+async def test_capture_pipeline_downloads_markdown_images_as_immutable_attachments(
+    session: AsyncSession,
+) -> None:
+    context = await bootstrap_default_context(session, Settings())
+    job = (
+        await CaptureJobService(session).submit(
+            workspace_id=context.workspace.id,
+            knowledge_base_id=context.knowledge_base.id,
+            url="https://example.com/markdown-images",
+            idempotency_key="web:markdown-images:1",
+        )
+    ).job
+    store = InMemoryObjectStore()
+    completed = await CapturePipeline(
+        session,
+        store,
+        FakeMarkdownFetcher(
+            b"# Article\n\n![one](https://cdn.example.com/one.png)\n"
+            b"![two](/images/two.png)\n"
+        ),
+        WebPageExtractor(),
+    ).run(context.workspace.id, job.id)
+
+    artifacts = await SourceRepository(session).list_artifacts(
+        context.workspace.id, completed.source_version_id
+    )
+    attachments = [item for item in artifacts if item.role.value == "attachment"]
+    metadata_artifact = next(item for item in artifacts if item.role.value == "metadata")
+    metadata = json.loads(await store.get(metadata_artifact.object_key))
+
+    assert len(attachments) == 2
+    assert metadata["attachment_count"] == 2
+    assert metadata["attachment_failures"] == 0
+    assert {await store.get(item.object_key) for item in attachments} == {b"PNG"}
 
 
 async def test_editing_note_creates_history_without_changing_source_version(

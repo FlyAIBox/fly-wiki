@@ -1,9 +1,25 @@
 import hashlib
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass
+from html import unescape
 from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 from markdownify import markdownify
+
+_MARKDOWN_IMAGE_RE = re.compile(
+    r"!\[[^\]\n]*\]\(\s*(?:<(?P<angle>[^>\n]+)>|(?P<plain>[^\s)\n]+))"
+)
+_MARKDOWN_IMAGE_REFERENCE_RE = re.compile(
+    r"!\[(?P<alt>[^\]\n]*)\]\[(?P<label>[^\]\n]*)\]"
+)
+_MARKDOWN_REFERENCE_DEFINITION_RE = re.compile(
+    r"(?m)^\s{0,3}\[(?P<label>[^\]\n]+)\]:\s*"
+    r"(?:<(?P<angle>[^>\n]+)>|(?P<plain>\S+))"
+)
+_HTML_IMAGE_RE = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+_MAX_ATTACHMENTS = 20
 
 
 @dataclass(frozen=True)
@@ -76,15 +92,10 @@ class WebPageExtractor:
         if canonical:
             metadata["declared_canonical_url"] = canonical
 
-        attachment_urls: list[str] = []
-        for image in body.find_all("img", src=True):
-            candidate = urljoin(url, str(image["src"]))
-            if urlsplit(candidate).scheme not in {"http", "https"}:
-                continue
-            if candidate not in attachment_urls:
-                attachment_urls.append(candidate)
-            if len(attachment_urls) == 20:
-                break
+        attachment_urls = _normalize_attachment_urls(
+            (str(image["src"]) for image in body.find_all("img", src=True)),
+            url,
+        )
 
         return ExtractedWebPage(
             markdown=markdown_text.encode(),
@@ -130,7 +141,10 @@ class WebPageExtractor:
             markdown=markdown_text.encode(),
             metadata=metadata,
             locator_map={"version": 1, "blocks": blocks},
-            attachment_urls=(),
+            attachment_urls=_normalize_attachment_urls(
+                _markdown_image_candidates(markdown_text),
+                url,
+            ),
         )
 
     @staticmethod
@@ -140,3 +154,44 @@ class WebPageExtractor:
             return None
         content = element.get("content")
         return str(content).strip() if content else None
+
+
+def _markdown_image_candidates(markdown_text: str) -> list[str]:
+    references: dict[str, str] = {}
+    for match in _MARKDOWN_REFERENCE_DEFINITION_RE.finditer(markdown_text):
+        label = match.group("label").strip().casefold()
+        references[label] = match.group("angle") or match.group("plain")
+
+    positioned: list[tuple[int, str]] = []
+    for match in _MARKDOWN_IMAGE_RE.finditer(markdown_text):
+        positioned.append(
+            (match.start(), match.group("angle") or match.group("plain"))
+        )
+    for match in _MARKDOWN_IMAGE_REFERENCE_RE.finditer(markdown_text):
+        label = (match.group("label") or match.group("alt")).strip().casefold()
+        candidate = references.get(label)
+        if candidate:
+            positioned.append((match.start(), candidate))
+    for match in _HTML_IMAGE_RE.finditer(markdown_text):
+        image = BeautifulSoup(match.group(0), "html.parser").find("img", src=True)
+        if image is not None:
+            positioned.append((match.start(), str(image["src"])))
+
+    positioned.sort(key=lambda item: item[0])
+    return [candidate for _, candidate in positioned]
+
+
+def _normalize_attachment_urls(
+    candidates: Iterable[object],
+    base_url: str,
+) -> tuple[str, ...]:
+    attachment_urls: list[str] = []
+    for raw_candidate in candidates:
+        candidate = urljoin(base_url, unescape(str(raw_candidate).strip()))
+        if urlsplit(candidate).scheme not in {"http", "https"}:
+            continue
+        if candidate not in attachment_urls:
+            attachment_urls.append(candidate)
+        if len(attachment_urls) == _MAX_ATTACHMENTS:
+            break
+    return tuple(attachment_urls)
