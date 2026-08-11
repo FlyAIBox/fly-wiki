@@ -15,7 +15,16 @@ class ExtractedWebPage:
 
 
 class WebPageExtractor:
-    def extract(self, raw_html: bytes, url: str) -> ExtractedWebPage:
+    def extract(
+        self,
+        raw_html: bytes,
+        url: str,
+        *,
+        content_type: str = "text/html",
+    ) -> ExtractedWebPage:
+        if content_type == "text/markdown":
+            return self._extract_markdown(raw_html, url)
+
         soup = BeautifulSoup(raw_html, "html.parser")
         for element in soup(["script", "style", "noscript", "template"]):
             element.decompose()
@@ -82,6 +91,46 @@ class WebPageExtractor:
             metadata=metadata,
             locator_map={"version": 1, "blocks": blocks},
             attachment_urls=tuple(attachment_urls),
+        )
+
+    @staticmethod
+    def _extract_markdown(raw_markdown: bytes, url: str) -> ExtractedWebPage:
+        markdown_text = raw_markdown.decode("utf-8", errors="replace").strip()
+        if markdown_text:
+            markdown_text += "\n"
+
+        blocks: list[dict[str, object]] = []
+        for ordinal, line in enumerate(markdown_text.splitlines()):
+            text = line.strip().lstrip("#").strip().lstrip("- ").strip()
+            if not text:
+                continue
+            tag = "h1" if line.lstrip().startswith("#") else "p"
+            blocks.append(
+                {
+                    "ordinal": ordinal,
+                    "tag": tag,
+                    "text": text,
+                    "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+                }
+            )
+
+        title = next(
+            (block["text"] for block in blocks if block["tag"] == "h1"),
+            None,
+        )
+        metadata: dict[str, object] = {
+            "url": url,
+            "usage_scope": "private_research",
+            "capture_content_type": "text/markdown",
+        }
+        if isinstance(title, str):
+            metadata["title"] = title
+
+        return ExtractedWebPage(
+            markdown=markdown_text.encode(),
+            metadata=metadata,
+            locator_map={"version": 1, "blocks": blocks},
+            attachment_urls=(),
         )
 
     @staticmethod

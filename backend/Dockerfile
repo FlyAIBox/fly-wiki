@@ -35,6 +35,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Application source.
 COPY backend/ ./
+COPY skills/agent-reach /srv/skills/agent-reach
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 

@@ -4,6 +4,7 @@
 
 - [当前产品基线](docs/product/产品基线.md)
 - [M0：微信驱动的自进化 Wiki 闭环](docs/product/首个里程碑.md)
+- [互联网与社交平台采集能力](docs/product/互联网采集能力.md)
 - [领域词汇表](CONTEXT.md)
 - [架构决策](docs/adr/)
 

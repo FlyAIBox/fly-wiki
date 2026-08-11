@@ -4,17 +4,12 @@ from dataclasses import dataclass
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flywiki.sources.acquisition import SourceAcquisitionService
 from flywiki.sources.extractor import WebPageExtractor
 from flywiki.sources.fetcher import CaptureFetchError, WebFetcher
 from flywiki.sources.models import CaptureJob, CaptureStatus
-from flywiki.sources.notes import EditableNoteService
 from flywiki.sources.repository import SourceRepository
-from flywiki.sources.service import (
-    AttachmentInput,
-    CaptureWebSnapshot,
-    SourceRegistry,
-    normalize_web_url,
-)
+from flywiki.sources.service import normalize_web_url
 from flywiki.sources.storage import ObjectStore
 from flywiki.workspaces.repository import WorkspaceRepository
 
@@ -93,9 +88,12 @@ class CapturePipeline:
     ) -> None:
         self._session = session
         self._repository = SourceRepository(session)
-        self._object_store = object_store
-        self._fetcher = fetcher
-        self._extractor = extractor
+        self._acquisition = SourceAcquisitionService(
+            session,
+            object_store,
+            fetcher,
+            extractor,
+        )
 
     async def run(self, workspace_id: uuid.UUID, job_id: uuid.UUID) -> CaptureJob:
         job = await self._repository.get_capture_job(workspace_id, job_id)
@@ -109,55 +107,14 @@ class CapturePipeline:
         await self._session.commit()
 
         try:
-            page = await self._fetcher.fetch(job.canonical_url)
-            extracted = self._extractor.extract(page.content, page.final_url)
-            if not extracted.markdown.strip():
-                raise ValueError("page contains no extractable text")
-            attachments: list[AttachmentInput] = []
-            attachment_failures = 0
-            used_names: set[str] = set()
-            for index, attachment_url in enumerate(extracted.attachment_urls, start=1):
-                try:
-                    fetched_attachment = await self._fetcher.fetch_attachment(
-                        attachment_url
-                    )
-                except CaptureFetchError:
-                    attachment_failures += 1
-                    continue
-                name = fetched_attachment.name
-                if name in used_names:
-                    name = f"{index}-{name}"
-                used_names.add(name)
-                attachments.append(
-                    AttachmentInput(
-                        name=name,
-                        content=fetched_attachment.content,
-                        content_type=fetched_attachment.content_type,
-                    )
-                )
-            metadata = dict(extracted.metadata)
-            metadata["attachment_count"] = len(attachments)
-            metadata["attachment_failures"] = attachment_failures
-            captured = await SourceRegistry(self._session, self._object_store).capture_web_snapshot(
-                CaptureWebSnapshot(
-                    workspace_id=workspace_id,
-                    url=page.final_url,
-                    idempotency_key=job.idempotency_key,
-                    raw_html=page.content,
-                    markdown=extracted.markdown,
-                    metadata=metadata,
-                    locator_map=extracted.locator_map,
-                    attachments=tuple(attachments),
-                )
-            )
-            await EditableNoteService(self._session).create_initial(
-                workspace_id,
-                captured.version.id,
-                extracted.markdown.decode(),
+            acquired = await self._acquisition.acquire(
+                workspace_id=workspace_id,
+                url=job.canonical_url,
+                idempotency_key=job.idempotency_key,
             )
             job = await self._repository.get_capture_job(workspace_id, job_id)
             job.status = CaptureStatus.READY_FOR_COMPILE
-            job.source_version_id = captured.version.id
+            job.source_version_id = acquired.source_version_id
             await self._session.commit()
             return job
         except Exception as exc:

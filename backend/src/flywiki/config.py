@@ -1,6 +1,7 @@
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_prefix="FLYWIKI_",
         extra="ignore",
+        populate_by_name=True,
     )
 
     environment: str = "development"
@@ -24,6 +26,20 @@ class Settings(BaseSettings):
     capture_max_bytes: int = 10 * 1024 * 1024
     capture_max_attachment_bytes: int = 5 * 1024 * 1024
     capture_max_redirects: int = 5
+    agent_model: str | None = None
+    model_name: str = Field(default="gpt-5-mini", validation_alias="MODEL_NAME")
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="OPENAI_API_KEY",
+        repr=False,
+    )
+    openai_base_url: str | None = Field(
+        default=None,
+        validation_alias="OPENAI_BASE_URL",
+    )
+    agent_reach_skill_path: Path = (
+        Path(__file__).resolve().parents[3] / "skills" / "agent-reach"
+    )
     langfuse_health_url: str = "http://localhost:3000/api/public/health"
     bootstrap_on_start: bool = True
     default_owner_email: str = "owner@flywiki.local"
@@ -37,8 +53,12 @@ class Settings(BaseSettings):
     langfuse_secret_key: str | None = Field(default=None, repr=False)
     langfuse_host: str = "http://localhost:3000"
 
+    @property
+    def resolved_agent_model(self) -> str:
+        project_override = (self.agent_model or "").strip()
+        return project_override or self.model_name.strip()
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

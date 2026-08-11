@@ -41,6 +41,7 @@ class CaptureWebSnapshot:
     metadata: dict[str, object]
     locator_map: dict[str, object]
     attachments: tuple[AttachmentInput, ...] = ()
+    raw_content_type: str = "text/html; charset=utf-8"
 
 
 @dataclass(frozen=True)
@@ -192,7 +193,7 @@ class SourceRegistry:
                 SourceArtifactRole.RAW_HTML,
                 "raw.html",
                 command.raw_html,
-                "text/html; charset=utf-8",
+                command.raw_content_type,
             ),
             _ArtifactInput(
                 SourceArtifactRole.MARKDOWN,

@@ -9,9 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from flywiki.config import Settings
 from flywiki.sources.extractor import WebPageExtractor
 from flywiki.sources.fetcher import (
+    AgentReachWebFetcher,
     FetchedAttachment,
     FetchedWebPage,
+    ProviderUnavailableError,
     ResponseTooLargeError,
+    RoutedWebFetcher,
     SafeWebFetcher,
     UnsafeUrlError,
 )
@@ -47,6 +50,85 @@ class FailingFetcher:
 
     async def fetch_attachment(self, _url: str) -> FetchedAttachment:
         raise UnsafeUrlError("blocked")
+
+
+class StubProvider:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.error = error
+        self.page_calls = 0
+        self.attachment_calls = 0
+
+    async def fetch(self, url: str) -> FetchedWebPage:
+        self.page_calls += 1
+        if self.error is not None:
+            raise self.error
+        return FetchedWebPage(url, b"<html><body><p>Agent Reach</p></body></html>", "text/html")
+
+    async def fetch_attachment(self, url: str) -> FetchedAttachment:
+        self.attachment_calls += 1
+        return FetchedAttachment(url, b"fallback", "image/png", "fallback.png")
+
+
+async def test_capture_fetcher_prefers_agent_reach_and_falls_back_when_unavailable() -> None:
+    agent_reach = StubProvider()
+    fallback = StubProvider()
+    fetcher = RoutedWebFetcher(agent_reach, fallback)
+
+    page = await fetcher.fetch("https://example.com/article")
+    attachment = await fetcher.fetch_attachment("https://example.com/image.png")
+
+    assert page.content == b"<html><body><p>Agent Reach</p></body></html>"
+    assert agent_reach.page_calls == 1
+    assert fallback.page_calls == 0
+    assert attachment.content == b"fallback"
+    assert agent_reach.attachment_calls == 0
+    assert fallback.attachment_calls == 1
+
+
+async def test_capture_fetcher_uses_fallback_for_a_missing_agent_reach_capability() -> None:
+    agent_reach = StubProvider(error=ProviderUnavailableError("not installed"))
+    fallback = StubProvider()
+    fetcher = RoutedWebFetcher(agent_reach, fallback)
+
+    page = await fetcher.fetch("https://unsupported.example/article")
+
+    assert page.content == b"<html><body><p>Agent Reach</p></body></html>"
+    assert agent_reach.page_calls == 1
+    assert fallback.page_calls == 1
+
+
+async def test_agent_reach_web_reader_returns_normalized_markdown() -> None:
+    async def public_resolver(_host: str, _port: int) -> list[str]:
+        return ["93.184.216.34"]
+
+    reader = AgentReachWebFetcher(
+        timeout_seconds=1,
+        max_bytes=100,
+        max_redirects=1,
+        resolver=public_resolver,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                headers={"content-type": "text/plain; charset=utf-8"},
+                content=b"# Agent Reach\n\nReader output.",
+                request=request,
+            )
+        ),
+    )
+
+    page = await reader.fetch("https://example.com/article#fragment")
+    extracted = WebPageExtractor().extract(
+        page.content,
+        page.final_url,
+        content_type=page.content_type,
+    )
+
+    assert page.final_url == "https://example.com/article"
+    assert page.content_type == "text/markdown"
+    assert page.backend == "agent-reach"
+    assert extracted.markdown == b"# Agent Reach\n\nReader output.\n"
+    assert extracted.metadata["capture_content_type"] == "text/markdown"
+    assert extracted.locator_map["blocks"][0]["text"] == "Agent Reach"
 
 
 async def test_capture_pipeline_is_idempotent_and_creates_editable_note(

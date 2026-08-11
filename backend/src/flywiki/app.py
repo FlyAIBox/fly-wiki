@@ -4,11 +4,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from flywiki.agents.factory import create_agent_runtime
+from flywiki.agents.interface import AgentRuntime
+from flywiki.agents.routes import router as agent_router
 from flywiki.config import Settings, get_settings
 from flywiki.db.database import Database
 from flywiki.health.routes import router as health_router
 from flywiki.health.service import CeleryProbe, DatabaseProbe, HealthService, HttpProbe, RedisProbe
 from flywiki.observability.factory import create_observability
+from flywiki.sources.acquisition import create_capture_fetcher
+from flywiki.sources.fetcher import WebFetcher
 from flywiki.sources.routes import router as source_router
 from flywiki.sources.storage import ObjectStore, create_minio_object_store
 from flywiki.tasks.celery_app import celery_app
@@ -23,6 +28,8 @@ def create_app(
     health_service: HealthService | None = None,
     object_store: ObjectStore | None = None,
     capture_dispatcher: Callable[[uuid.UUID, uuid.UUID], object] | None = None,
+    agent_runtime: AgentRuntime | None = None,
+    source_fetcher_factory: Callable[[Settings], WebFetcher] | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     app_database = database or Database(app_settings.database_url)
@@ -54,9 +61,12 @@ def create_app(
     app.state.observability = create_observability(app_settings)
     app.state.object_store = object_store or create_minio_object_store(app_settings)
     app.state.capture_dispatcher = capture_dispatcher or dispatch_capture_job
+    app.state.agent_runtime = agent_runtime or create_agent_runtime(app_settings)
+    app.state.source_fetcher_factory = source_fetcher_factory or create_capture_fetcher
     app.include_router(health_router)
     app.include_router(workspace_router)
     app.include_router(source_router)
+    app.include_router(agent_router)
     return app
 
 
