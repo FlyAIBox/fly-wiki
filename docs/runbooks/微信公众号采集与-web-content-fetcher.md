@@ -197,6 +197,8 @@ FLYWIKI_WEB_CONTENT_FETCHER_SKILL_PATH=skills/web-content-fetcher
 
 Skill 的源码位于项目自身的 `skills/web-content-fetcher`，应与 `skills-lock.json` 一并提交到 Git，不依赖开发者个人目录下的 `.agents`、`.codex` 或 `.claude` 安装。其他人重新克隆代码后，Docker 构建会直接从该项目目录复制 skill；本地运行 backend 时，默认配置也会从同一相对路径读取。只有显式设置 `FLYWIKI_WEB_CONTENT_FETCHER_SKILL_PATH` 时才会覆盖这个默认路径。
 
+仓库只维护 `skills/web-content-fetcher` 这一份源码，不在 `.agents` 下保存副本，避免两个目录的选择器或 JSON 协议随时间产生差异。
+
 修改 skill、Python 依赖、Dockerfile 或该环境变量后，需要重建并重启 API/Worker，而不是只重启已有容器：
 
 ```bash

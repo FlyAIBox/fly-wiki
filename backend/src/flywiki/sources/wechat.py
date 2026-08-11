@@ -6,11 +6,13 @@ from typing import Protocol
 from urllib.parse import urlsplit
 
 from flywiki.sources.fetcher import (
+    BlockedContentError,
     FetchedAttachment,
     FetchedWebPage,
     ProviderUnavailableError,
     ResponseTooLargeError,
     UnsafeUrlError,
+    is_challenge_content,
 )
 from flywiki.sources.service import normalize_web_url
 
@@ -156,6 +158,8 @@ def _parse_skill_output(
     if isinstance(title, str) and title.strip() and not markdown.startswith("# "):
         markdown = f"# {title.strip()}\n\n{markdown}"
     encoded = (markdown + "\n").encode()
+    if is_challenge_content(encoded):
+        raise BlockedContentError("WeChat collector returned a challenge page")
     if len(encoded) > max_bytes:
         raise ResponseTooLargeError("WeChat article exceeds capture_max_bytes")
     return encoded, metadata

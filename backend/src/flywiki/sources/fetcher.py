@@ -199,7 +199,7 @@ class AgentReachWebFetcher:
         if upstream_error is not None:
             status_code = upstream_error.group(1).decode()
             raise BlockedContentError(f"Agent Reach upstream returned {status_code}")
-        if _is_challenge_page(content):
+        if is_challenge_content(content):
             raise BlockedContentError("Agent Reach returned a challenge page")
         return FetchedWebPage(target_url, content, "text/markdown", backend="agent-reach")
 
@@ -253,7 +253,7 @@ class SafeWebFetcher:
             )
         except httpx.HTTPError as exc:
             raise CaptureFetchError(type(exc).__name__) from exc
-        if _is_challenge_page(content):
+        if is_challenge_content(content):
             raise BlockedContentError("web origin returned a challenge page")
         return FetchedWebPage(final_url, content, content_type, backend="safe-web")
 
@@ -347,7 +347,7 @@ class SafeWebFetcher:
                 raise UnsafeUrlError("URL resolves to a non-public address")
 
 
-def _is_challenge_page(content: bytes) -> bool:
+def is_challenge_content(content: bytes) -> bool:
     normalized = content.lower()
     return any(
         all(marker in normalized for marker in marker_group)

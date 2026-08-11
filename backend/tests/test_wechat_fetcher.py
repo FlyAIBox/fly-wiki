@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from flywiki.sources.fetcher import ProviderUnavailableError, ResponseTooLargeError
+from flywiki.sources.fetcher import (
+    BlockedContentError,
+    ProviderUnavailableError,
+    ResponseTooLargeError,
+)
 from flywiki.sources.wechat import WeChatPublicAccountFetcher
 
 
@@ -127,3 +131,24 @@ async def test_wechat_adapter_rejects_malformed_or_oversized_output(tmp_path: Pa
     )
     with pytest.raises(ResponseTooLargeError):
         await oversized.fetch("https://mp.weixin.qq.com/s/article-id")
+
+
+async def test_wechat_adapter_rejects_challenge_content(tmp_path: Path) -> None:
+    fetcher = WeChatPublicAccountFetcher(
+        skill_root=skill_root(tmp_path),
+        timeout_seconds=30,
+        max_bytes=10_000,
+        runner=FakeRunner(
+            {
+                "content": (
+                    "# 环境异常\n\n"
+                    "当前环境异常，请完成验证后即可继续访问。"
+                )
+            }
+        ),
+    )
+
+    with pytest.raises(BlockedContentError, match="challenge page") as caught:
+        await fetcher.fetch("https://mp.weixin.qq.com/s/article-id")
+
+    assert caught.value.code == "blocked_content"
