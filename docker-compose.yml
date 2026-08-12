@@ -24,6 +24,9 @@ x-backend-env: &backend-env
   FLYWIKI_OBSERVABILITY_BACKEND: ${FLYWIKI_OBSERVABILITY_BACKEND:-noop}
   FLYWIKI_LANGFUSE_PUBLIC_KEY: ${FLYWIKI_LANGFUSE_PUBLIC_KEY:-}
   FLYWIKI_LANGFUSE_SECRET_KEY: ${FLYWIKI_LANGFUSE_SECRET_KEY:-}
+  FLYWIKI_OPENKB_WORKER_URL: ${FLYWIKI_OPENKB_WORKER_URL:-http://openkb-worker:8100}
+  FLYWIKI_OPENKB_FALLBACK_WORKER_URL: ${FLYWIKI_OPENKB_FALLBACK_WORKER_URL:-}
+  FLYWIKI_OPENKB_TIMEOUT_SECONDS: ${FLYWIKI_OPENKB_TIMEOUT_SECONDS:-1800}
   FLYWIKI_AGENT_MODEL: ${FLYWIKI_AGENT_MODEL:-}
   FLYWIKI_AGENT_REACH_SKILL_PATH: /srv/skills/agent-reach
   FLYWIKI_WEB_CONTENT_FETCHER_SKILL_PATH: skills/web-content-fetcher
@@ -228,22 +231,46 @@ services:
     ports:
       - "${LANGFUSE_PORT:-3000}:3000"
 
-  # --- OpenKB 编译 Worker（M0 目标；镜像就绪后启用）------------------------
+  # --- OpenKB 编译 Worker（隔离固定版）------------------------------------
   # OpenKB 以隔离、固定版本、可替换的方式运行，只经 OpenKBAdapter 调用；
   # 业务代码不 import OpenKB 或 OpenAI Agents SDK（ADR-0001）。
-  # 镜像坐标待 OpenKB 打包后填入并固定版本 + digest。
   openkb-worker:
-    image: ${OPENKB_IMAGE:-flywiki/openkb-worker:0.0.0-placeholder}
+    build:
+      context: .
+      dockerfile: openkb-worker/Dockerfile
+      args:
+        OPENKB_VERSION: 0.4.5
+        OPENKB_COMMIT: ac118407eacd995618256f121c21a2d275672f47
+    image: ${OPENKB_IMAGE:-flywiki/openkb-worker:0.4.5-flywiki.1}
     profiles: ["openkb"]
     restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
     environment:
-      OPENKB_REDIS_URL: redis://redis:6379/1
+      OPENKB_MODEL: ${OPENKB_MODEL:-gpt-5-mini}
+      OPENKB_LANGUAGE: ${OPENKB_LANGUAGE:-zh}
+      OPENKB_COMMAND_TIMEOUT_SECONDS: ${FLYWIKI_OPENKB_TIMEOUT_SECONDS:-1800}
+      LLM_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+    volumes:
+      - openkb-data:/data/openkb
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health/live', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    ports:
+      - "127.0.0.1:${OPENKB_PORT:-8100}:8100"
 
 volumes:
   postgres-data:
   redis-data:
   minio-data:
   clickhouse-data:
+  openkb-data:

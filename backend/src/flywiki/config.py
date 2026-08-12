@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     langfuse_public_key: str | None = Field(default=None, repr=False)
     langfuse_secret_key: str | None = Field(default=None, repr=False)
     langfuse_host: str = "http://localhost:3000"
+    openkb_worker_url: str = "http://localhost:8100"
+    openkb_fallback_worker_url: str | None = None
+    openkb_timeout_seconds: float = 1800.0
 
     @property
     def resolved_agent_model(self) -> str:

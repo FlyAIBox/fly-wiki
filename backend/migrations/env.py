@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from flywiki.config import get_settings
+from flywiki.compilation import models as compilation_models  # noqa: F401
 from flywiki.db.base import Base
 from flywiki.sources import models as source_models  # noqa: F401
 from flywiki.workspaces import models  # noqa: F401
@@ -52,4 +53,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     asyncio.run(run_async_migrations())
-

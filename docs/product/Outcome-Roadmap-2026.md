@@ -40,7 +40,7 @@ Roadmap 描述要实现的用户结果和阶段顺序，GitHub Issues 记录具�
 | 0 | 自托管平台骨架与 Workspace Owner 边界 | [#3](https://github.com/FlyAIBox/fly-wiki/issues/3) | Open · `ready-for-agent` | 🟡 部分完成 | 核对完整 Compose、健康检查、迁移与 Workspace 隔离验收后关闭 |
 | 0 | 不可变网页采集与 Editable Note | [#2](https://github.com/FlyAIBox/fly-wiki/issues/2) | Open · `ready-for-agent` | 🟠 待验收 | 按 AC 做一次真实网页/公众号回归，记录证据并关闭 Issue |
 | 0 | 受限 AgentRuntime 与 DeepAgents | [#10](https://github.com/FlyAIBox/fly-wiki/issues/10) | Open · `ready-for-agent` | 🟡 部分完成 | 补多步 grounded analysis、取消/预算、静态依赖与权限拒绝验收 |
-| 1 | OpenKB Worker 与可重建编译 | [#5](https://github.com/FlyAIBox/fly-wiki/issues/5) | Open · `ready-for-agent` | ⬜ 可开始 | M0 下一条核心价值切片；先完成 #2、#3 验收，替换 placeholder Worker |
+| 1 | OpenKB Worker 与可重建编译 | [#5](https://github.com/FlyAIBox/fly-wiki/issues/5) | Open · `ready-for-agent` | 🟠 待验收 | Adapter、固定 Worker、编译任务、重建和兼容门禁已实现；配置测试模型完成一次真实资料编译后关闭 |
 | 2 | Claim—Evidence、Knowledge Delta 与可逆变更 | [#4](https://github.com/FlyAIBox/fly-wiki/issues/4) | Open · `ready-for-agent` | ⛔ 被依赖阻塞 | 依赖 #3、#5、#10 |
 | 3 | 严格 grounded chat 与引用审计 | [#6](https://github.com/FlyAIBox/fly-wiki/issues/6) | Open · `ready-for-agent` | ⛔ 被依赖阻塞 | 依赖 #4、#5、#10 |
 | 4A | Knowledge Inbox、Markdown 编辑与一跳证据图 | [#8](https://github.com/FlyAIBox/fly-wiki/issues/8) | Open · `ready-for-agent` | 🟡 部分完成 | 已有采集首页与 Note 编辑器；完整 Inbox、Delta 审阅和一跳图依赖 #6 |
@@ -119,4 +119,4 @@ Roadmap 描述要实现的用户结果和阶段顺序，GitHub Issues 记录具�
 5. **质量红线优先**：locator、引用完整性、多轮编译保真、Workspace 权限、幂等和回滚失败时暂停发布，修复或收缩范围后重测。
 6. **未来阶段按结果开票**：Issue 标题与 Outcome 先说明用户行为变化，再列 Scope、Acceptance criteria、Non-goals 和 Dependencies。
 
-下一次状态更新应发生在 #2 验收关闭，或 #5 开始实施时，以先发生者为准。
+下一次状态更新应发生在 #2 或 #5 完成真实来源验收并关闭时，以先发生者为准。

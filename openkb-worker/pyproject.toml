@@ -1,0 +1,20 @@
+[project]
+name = "flywiki-openkb-worker"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "defusedxml==0.7.1",
+  "fastapi==0.141.1",
+  "lxml==6.1.1",
+  "onnxruntime==1.28.0",
+  "openkb==0.4.5",
+  # OpenKB pins this prerelease transitively. Declaring it explicitly lets uv
+  # allow only this required prerelease instead of opening all dependencies.
+  "pageindex==0.3.0.dev3",
+  "pydantic==2.13.4",
+  "protobuf==7.35.1",
+  "uvicorn==0.52.1",
+]
+
+[tool.uv]
+package = false

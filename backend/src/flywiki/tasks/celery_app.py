@@ -25,4 +25,5 @@ def ping() -> str:
 
 
 # Import task modules after celery_app is constructed to avoid circular imports.
+from flywiki.compilation import tasks as compilation_tasks  # noqa: E402, F401
 from flywiki.sources import tasks as source_tasks  # noqa: E402, F401

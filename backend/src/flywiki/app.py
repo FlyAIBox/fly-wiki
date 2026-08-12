@@ -7,6 +7,9 @@ from fastapi import FastAPI
 from flywiki.agents.factory import create_agent_runtime
 from flywiki.agents.interface import AgentRuntime
 from flywiki.agents.routes import router as agent_router
+from flywiki.compilation.factory import create_openkb_adapter
+from flywiki.compilation.interface import OpenKBAdapter
+from flywiki.compilation.routes import router as compilation_router
 from flywiki.config import Settings, get_settings
 from flywiki.db.database import Database
 from flywiki.health.routes import router as health_router
@@ -28,6 +31,8 @@ def create_app(
     health_service: HealthService | None = None,
     object_store: ObjectStore | None = None,
     capture_dispatcher: Callable[[uuid.UUID, uuid.UUID], object] | None = None,
+    compilation_dispatcher: Callable[[uuid.UUID, uuid.UUID], object] | None = None,
+    openkb_adapter: OpenKBAdapter | None = None,
     agent_runtime: AgentRuntime | None = None,
     source_fetcher_factory: Callable[[Settings], WebFetcher] | None = None,
 ) -> FastAPI:
@@ -61,11 +66,14 @@ def create_app(
     app.state.observability = create_observability(app_settings)
     app.state.object_store = object_store or create_minio_object_store(app_settings)
     app.state.capture_dispatcher = capture_dispatcher or dispatch_capture_job
+    app.state.compilation_dispatcher = compilation_dispatcher or dispatch_compilation_job
+    app.state.openkb_adapter = openkb_adapter or create_openkb_adapter(app_settings)
     app.state.agent_runtime = agent_runtime or create_agent_runtime(app_settings)
     app.state.source_fetcher_factory = source_fetcher_factory or create_capture_fetcher
     app.include_router(health_router)
     app.include_router(workspace_router)
     app.include_router(source_router)
+    app.include_router(compilation_router)
     app.include_router(agent_router)
     return app
 
@@ -73,6 +81,14 @@ def create_app(
 def dispatch_capture_job(workspace_id: uuid.UUID, job_id: uuid.UUID) -> object:
     return celery_app.send_task(
         "flywiki.sources.capture",
+        args=[str(workspace_id), str(job_id)],
+        task_id=str(job_id),
+    )
+
+
+def dispatch_compilation_job(workspace_id: uuid.UUID, job_id: uuid.UUID) -> object:
+    return celery_app.send_task(
+        "flywiki.compilation.run",
         args=[str(workspace_id), str(job_id)],
         task_id=str(job_id),
     )

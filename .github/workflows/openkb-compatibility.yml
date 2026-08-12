@@ -1,0 +1,48 @@
+name: OpenKB compatibility
+
+on:
+  push:
+    paths:
+      - "openkb-worker/**"
+      - ".github/workflows/openkb-compatibility.yml"
+  pull_request:
+    paths:
+      - "openkb-worker/**"
+      - ".github/workflows/openkb-compatibility.yml"
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  fixed-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install openkb==0.4.5
+      - run: python openkb-worker/check_contract.py
+      - run: docker build --file openkb-worker/Dockerfile --tag flywiki/openkb-worker:contract .
+
+  upstream-warning:
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: [latest-stable, main]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install latest stable
+        if: matrix.channel == 'latest-stable'
+        run: pip install --upgrade openkb
+      - name: Install upstream main
+        if: matrix.channel == 'main'
+        run: pip install 'git+https://github.com/VectifyAI/OpenKB.git@main'
+      - run: python openkb-worker/check_contract.py

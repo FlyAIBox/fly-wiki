@@ -22,12 +22,13 @@ docker compose up -d
 - API 健康检查：<http://localhost:8000/health/ready>
 - 默认 Workspace / Knowledge Base 由 API 启动时自动引导（幂等）。
 - 手动验收清单：[docs/runbooks/本地Compose验收.md](docs/runbooks/本地Compose验收.md)
+- OpenKB 编译验收：[docs/runbooks/OpenKB编译验收.md](docs/runbooks/OpenKB编译验收.md)
 
 按需追加可选服务（profile 控制，保持核心骨架轻量）：
 
 ```bash
 docker compose --profile observability up -d   # 自托管 Langfuse 观测/评估面
-docker compose --profile openkb up -d          # 固定版本 OpenKB 编译 Worker（镜像就绪后启用）
+docker compose --profile openkb up -d          # 固定 OpenKB v0.4.5 编译 Worker
 ```
 
 ### 后端开发（不经容器）
